@@ -9,7 +9,8 @@ skip-lint = false
 stellalpha_vault = "64XogE2RvY7g4fDp8XxWZxFTycANjDK37n88GZizm5nx"
 
 [programs.localnet]
-stellalpha_vault = "AtJ1j39GKPLutkFBLe3xkBsSuTG2GfwmN3833mATEwaj"
+stellalpha_vault = "64XogE2RvY7g4fDp8XxWZxFTycANjDK37n88GZizm5nx"
+mock_swap = "DcVa1Kxo9DCUuvj6E8eJpUv9pARdGwWTM72MCT2vC3rS"
 
 [registry]
 url = "https://api.apr.dev"

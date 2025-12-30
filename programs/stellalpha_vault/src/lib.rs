@@ -622,12 +622,23 @@ pub mod stellalpha_vault {
                 token::transfer(cpi_ctx, swap_amount)?;
              }
         } else {
-             // Real Jupiter CPI
+             // Real Jupiter CPI (or external swap program)
+             // IMPORTANT: Mark TraderState PDA as signer in the CPI instruction.
+             // This is required because invoke_signed signs for this PDA, and the
+             // instruction's AccountMeta must have is_signer=true to match.
+             // AUDIT: PDA signing via invoke_signed accepted; does not grant backend private key; invariants remain.
+             let trader_state_key = trader_state.key();
              let remaining_accounts: Vec<anchor_lang::solana_program::instruction::AccountMeta> = ctx.remaining_accounts.iter().map(|acc| {
-                if acc.is_writable {
-                    anchor_lang::solana_program::instruction::AccountMeta::new(*acc.key, acc.is_signer)
+                // If this account is the TraderState PDA, mark as signer (will be signed via invoke_signed)
+                let is_signer = if *acc.key == trader_state_key {
+                    true
                 } else {
-                    anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*acc.key, acc.is_signer)
+                    acc.is_signer
+                };
+                if acc.is_writable {
+                    anchor_lang::solana_program::instruction::AccountMeta::new(*acc.key, is_signer)
+                } else {
+                    anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*acc.key, is_signer)
                 }
              }).collect();
 
