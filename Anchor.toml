@@ -1,5 +1,5 @@
 [toolchain]
-package_manager = "yarn"
+package_manager = "pnpm"
 
 [features]
 resolution = true
@@ -16,8 +16,8 @@ mock_swap = "DcVa1Kxo9DCUuvj6E8eJpUv9pARdGwWTM72MCT2vC3rS"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/devnet-wallet.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
+test = "pnpm exec ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
