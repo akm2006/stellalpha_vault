@@ -10,7 +10,6 @@ pub fn initialize_vault(ctx: Context<InitializeVault>, authority: Pubkey, base_m
     vault.authority = authority;
     vault.bump = ctx.bumps.vault;
     vault.is_paused = false;
-    vault.trade_amount_lamports = 0;
     vault.base_mint = base_mint;
     vault.allowed_mints = Vec::new(); // Start empty
     msg!("Vault initialized for owner: {} with Base Asset: {}", vault.owner, base_mint);
@@ -24,36 +23,6 @@ pub fn toggle_pause(ctx: Context<TogglePause>) -> Result<()> {
     Ok(())
 }
 
-pub fn deposit_sol(ctx: Context<DepositSol>, amount: u64) -> Result<()> {
-    let ix = anchor_lang::solana_program::system_instruction::transfer(
-        &ctx.accounts.owner.key(),
-        &ctx.accounts.vault.key(),
-        amount,
-    );
-    anchor_lang::solana_program::program::invoke(
-        &ix,
-        &[
-            ctx.accounts.owner.to_account_info(),
-            ctx.accounts.vault.to_account_info(),
-            ctx.accounts.system_program.to_account_info(),
-        ],
-    )?;
-    msg!("Deposited {} lamports to vault", amount);
-    Ok(())
-}
-
-pub fn withdraw_sol(ctx: Context<WithdrawSol>, amount: u64) -> Result<()> {
-    let vault = &mut ctx.accounts.vault;
-    let owner = &mut ctx.accounts.owner;
-    
-    require!(vault.owner == owner.key(), ErrorCode::Unauthorized);
-
-    **vault.to_account_info().try_borrow_mut_lamports()? -= amount;
-    **owner.to_account_info().try_borrow_mut_lamports()? += amount;
-
-    msg!("Withdrew {} lamports from vault", amount);
-    Ok(())
-}
 
 pub fn deposit_token(ctx: Context<DepositToken>, amount: u64) -> Result<()> {
     let cpi_accounts = Transfer {
@@ -178,37 +147,6 @@ pub struct TogglePause<'info> {
     pub vault: Account<'info, UserVault>,
 }
 
-#[derive(Accounts)]
-pub struct DepositSol<'info> {
-    #[account(mut)]
-    pub owner: Signer<'info>,
-    
-    #[account(
-        mut,
-        has_one = owner @ ErrorCode::Unauthorized,
-        seeds = [b"user_vault_v1", owner.key().as_ref()],
-        bump = vault.bump
-    )]
-    pub vault: Account<'info, UserVault>,
-    
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct WithdrawSol<'info> {
-    #[account(mut)]
-    pub owner: Signer<'info>,
-    
-    #[account(
-        mut,
-        has_one = owner @ ErrorCode::Unauthorized,
-        seeds = [b"user_vault_v1", owner.key().as_ref()],
-        bump = vault.bump
-    )]
-    pub vault: Account<'info, UserVault>,
-    
-    pub system_program: Program<'info, System>,
-}
 
 #[derive(Accounts)]
 pub struct DepositToken<'info> {

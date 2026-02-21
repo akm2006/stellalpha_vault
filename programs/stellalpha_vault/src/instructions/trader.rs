@@ -17,9 +17,8 @@ pub fn create_trader_state(ctx: Context<CreateTraderState>, amount: u64) -> Resu
     trader_state.is_paused = false;
     trader_state.is_settled = false;
     
-    // Phase 7C: Default to uninitialized and not syncing
+    // Phase 7C: Default to uninitialized
     trader_state.is_initialized = false;
-    trader_state.is_syncing = false;
 
     // Transfer initial funding from UserVault to TraderState
     let seeds = &[
@@ -125,51 +124,11 @@ pub fn mark_trader_initialized(ctx: Context<MarkTraderInitialized>) -> Result<()
     require!(!trader_state.is_initialized, ErrorCode::AlreadyInitialized);
 
     trader_state.is_initialized = true;
-    trader_state.is_syncing = false; // Force clear sync flag if set
     
     msg!("TraderState marked as initialized by {}", signer);
     Ok(())
 }
 
-/// Phase 7C: Start portfolio sync phase.
-/// Backend authority only. Enables swaps without full automation.
-/// INVARIANT: Cannot start sync if already initialized (irreversible).
-pub fn start_trader_sync(ctx: Context<StartTraderSync>) -> Result<()> {
-    let trader_state = &mut ctx.accounts.trader_state;
-    let vault = &ctx.accounts.vault;
-
-    // Only backend authority can start sync
-    require!(
-        ctx.accounts.signer.key() == vault.authority,
-        ErrorCode::Unauthorized
-    );
-    require!(!trader_state.is_initialized, ErrorCode::AlreadyInitialized);
-    require!(!trader_state.is_syncing, ErrorCode::AlreadySyncing);
-
-    trader_state.is_syncing = true;
-    msg!("TraderState sync started. Portfolio sync swaps enabled.");
-    Ok(())
-}
-
-/// Phase 7C: Finish portfolio sync and transition to automated trading.
-/// Backend authority only. is_syncing → is_initialized.
-pub fn finish_trader_sync(ctx: Context<FinishTraderSync>) -> Result<()> {
-    let trader_state = &mut ctx.accounts.trader_state;
-    let vault = &ctx.accounts.vault;
-
-    // Only backend authority can finish sync
-    require!(
-        ctx.accounts.signer.key() == vault.authority,
-        ErrorCode::Unauthorized
-    );
-    require!(trader_state.is_syncing, ErrorCode::NotSyncing);
-    require!(!trader_state.is_initialized, ErrorCode::AlreadyInitialized);
-
-    trader_state.is_syncing = false;
-    trader_state.is_initialized = true;
-    msg!("TraderState sync finished. Fully initialized for automated trading.");
-    Ok(())
-}
 
 /// Phase 7.1: Close a non-base TraderState ATA to reclaim rent.
 /// Owner-only. Requires is_paused = true. ATA balance must be 0.
@@ -527,49 +486,6 @@ pub struct MarkTraderInitialized<'info> {
     pub trader_state: Account<'info, TraderState>,
 }
 
-/// Phase 7C: Start portfolio sync phase.
-/// Backend authority only - user cannot start sync.
-#[derive(Accounts)]
-pub struct StartTraderSync<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,  // Must be vault.authority
-    
-    #[account(
-        seeds = [b"user_vault_v1", trader_state.owner.as_ref()],
-        bump = vault.bump
-    )]
-    pub vault: Account<'info, UserVault>,
-    
-    #[account(
-        mut,
-        has_one = vault @ ErrorCode::Unauthorized,
-        seeds = [b"trader_state", trader_state.owner.as_ref(), trader_state.trader.as_ref()],
-        bump = trader_state.bump
-    )]
-    pub trader_state: Account<'info, TraderState>,
-}
-
-/// Phase 7C: Finish portfolio sync and enable automated trading.
-/// Backend authority only - user cannot finish sync.
-#[derive(Accounts)]
-pub struct FinishTraderSync<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,  // Must be vault.authority
-    
-    #[account(
-        seeds = [b"user_vault_v1", trader_state.owner.as_ref()],
-        bump = vault.bump
-    )]
-    pub vault: Account<'info, UserVault>,
-    
-    #[account(
-        mut,
-        has_one = vault @ ErrorCode::Unauthorized,
-        seeds = [b"trader_state", trader_state.owner.as_ref(), trader_state.trader.as_ref()],
-        bump = trader_state.bump
-    )]
-    pub trader_state: Account<'info, TraderState>,
-}
 
 /// Phase 7.1: Close a TraderState ATA to reclaim rent.
 /// Owner-only. Requires is_paused = true all checked in instruction.

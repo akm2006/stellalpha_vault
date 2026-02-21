@@ -178,9 +178,9 @@ pub fn execute_trader_swap(ctx: Context<ExecuteTraderSwap>, amount_in: u64, min_
     // 1. Auth & Status Checks
     require!(!trader_state.is_paused, ErrorCode::TraderPaused);
     require!(vault.authority == ctx.accounts.authority.key(), ErrorCode::Unauthorized);
-    // Phase 7C: Allow swaps during sync phase OR after initialization
+    // Phase 7C: Allow swaps after initialization
     require!(
-        trader_state.is_initialized || trader_state.is_syncing,
+        trader_state.is_initialized,
         ErrorCode::TraderNotInitialized
     );
 

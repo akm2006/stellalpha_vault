@@ -46,14 +46,7 @@ pub struct TraderState {
     /// Required before withdrawal.
     pub is_settled: bool,
 
-    /// True after initial portfolio sync is complete.
-    /// Required for automated trading (Phase 7).
     pub is_initialized: bool,
-
-    /// True during portfolio sync phase.
-    /// Backend can execute swaps during sync, but automation is disabled.
-    /// Only backend authority can transition into/out of sync phase.
-    pub is_syncing: bool,
 }
 
 impl TraderState {
@@ -66,6 +59,5 @@ impl TraderState {
     // + 1 (is_paused)
     // + 1 (is_settled)
     // + 1 (is_initialized)
-    // + 1 (is_syncing)
-    pub const INIT_SPACE: usize = 8 + 32 + 32 + 32 + 1 + 8 + 8 + 8 + 1 + 1 + 1 + 1;
+    pub const INIT_SPACE: usize = 8 + 32 + 32 + 32 + 1 + 8 + 8 + 8 + 1 + 1 + 1;
 }

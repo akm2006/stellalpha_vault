@@ -43,14 +43,6 @@ pub mod stellalpha_vault {
         instructions::admin::toggle_legacy_trading(ctx)
     }
 
-    pub fn deposit_sol(ctx: Context<DepositSol>, amount: u64) -> Result<()> {
-        instructions::vault::deposit_sol(ctx, amount)
-    }
-
-    pub fn withdraw_sol(ctx: Context<WithdrawSol>, amount: u64) -> Result<()> {
-        instructions::vault::withdraw_sol(ctx, amount)
-    }
-
     pub fn deposit_token(ctx: Context<DepositToken>, amount: u64) -> Result<()> {
         instructions::vault::deposit_token(ctx, amount)
     }
@@ -115,18 +107,6 @@ pub mod stellalpha_vault {
         instructions::trader::mark_trader_initialized(ctx)
     }
 
-    /// Phase 7C: Start portfolio sync phase.
-    /// Backend authority only. Enables swaps without full automation.
-    /// INVARIANT: Cannot start sync if already initialized (irreversible).
-    pub fn start_trader_sync(ctx: Context<StartTraderSync>) -> Result<()> {
-        instructions::trader::start_trader_sync(ctx)
-    }
-
-    /// Phase 7C: Finish portfolio sync and transition to automated trading.
-    /// Backend authority only. is_syncing → is_initialized.
-    pub fn finish_trader_sync(ctx: Context<FinishTraderSync>) -> Result<()> {
-        instructions::trader::finish_trader_sync(ctx)
-    }
 
     /// Phase 7.1: Close a non-base TraderState ATA to reclaim rent.
     /// Owner-only. Requires is_paused = true. ATA balance must be 0.

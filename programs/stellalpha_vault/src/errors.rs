@@ -41,8 +41,4 @@ pub enum ErrorCode {
     TraderNotInitialized,
     #[msg("TraderState already initialized.")]
     AlreadyInitialized,
-    #[msg("TraderState is already in sync phase.")]
-    AlreadySyncing,
-    #[msg("TraderState is not in sync phase.")]
-    NotSyncing,
 }

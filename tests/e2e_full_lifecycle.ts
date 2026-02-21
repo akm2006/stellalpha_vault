@@ -211,59 +211,33 @@ describe("Full E2E: Vault Creation → TraderState Lifecycle → Withdrawal", ()
 
     const ts = await program.account.traderState.fetch(traderStatePda);
     assert.equal(ts.isInitialized, false, "Should NOT be initialized");
-    assert.equal(ts.isSyncing, false, "Should NOT be syncing");
     assert.ok(ts.currentValue.eq(TRADER_ALLOCATION));
     
     const traderBalance = (await getAccount(provider.connection, traderTokenAccount)).amount;
     console.log("   ✓ TraderState created with", TRADER_ALLOCATION.toNumber() / 1e6, "tokens");
     console.log("   TraderState balance:", Number(traderBalance) / 1e6, "tokens");
     console.log("   is_initialized:", ts.isInitialized);
-    console.log("   is_syncing:", ts.isSyncing);
   });
 
   // ============================================================
-  // STEP 4: Backend starts sync
+  // STEP 4: Mark Trader Initialized (User activates trading)
   // ============================================================
-  it("Step 4: Backend starts sync phase", async () => {
-    console.log("\n▶ STEP 4: Start Sync (Backend)");
+  it("Step 4: User marks TraderState initialized", async () => {
+    console.log("\n▶ STEP 4: Mark Initialized");
 
     await program.methods
-      .startTraderSync()
+      .markTraderInitialized()
       .accounts({
-        signer: backendAuthority.publicKey,
+        signer: user.publicKey,
         vault: vaultPda,
         traderState: traderStatePda,
       })
-      .signers([backendAuthority])
+      .signers([user])
       .rpc();
 
     const ts = await program.account.traderState.fetch(traderStatePda);
-    assert.equal(ts.isSyncing, true);
-    console.log("   ✓ Sync phase started");
-    console.log("   is_syncing:", ts.isSyncing);
-  });
-
-  // ============================================================
-  // STEP 5: Backend finishes sync (→ initialized)
-  // ============================================================
-  it("Step 5: Backend finishes sync → automated trading enabled", async () => {
-    console.log("\n▶ STEP 5: Finish Sync (Backend)");
-
-    await program.methods
-      .finishTraderSync()
-      .accounts({
-        signer: backendAuthority.publicKey,
-        vault: vaultPda,
-        traderState: traderStatePda,
-      })
-      .signers([backendAuthority])
-      .rpc();
-
-    const ts = await program.account.traderState.fetch(traderStatePda);
-    assert.equal(ts.isSyncing, false);
     assert.equal(ts.isInitialized, true);
-    console.log("   ✓ Sync finished, trading enabled");
-    console.log("   is_syncing:", ts.isSyncing);
+    console.log("   ✓ TraderState initialized");
     console.log("   is_initialized:", ts.isInitialized);
   });
 
@@ -375,11 +349,10 @@ describe("Full E2E: Vault Creation → TraderState Lifecycle → Withdrawal", ()
     console.log("  1. ✓ User creates vault (authority = backend)");
     console.log("  2. ✓ User deposits tokens to vault");
     console.log("  3. ✓ User creates TraderState allocation");
-    console.log("  4. ✓ Backend starts sync phase");
-    console.log("  5. ✓ Backend finishes sync → initialized");
-    console.log("  6. ✓ User pauses TraderState");
-    console.log("  7. ✓ User closes TraderState → funds to vault");
-    console.log("  8. ✓ User withdraws all funds from vault");
+    console.log("  4. ✓ User marks TraderState initialized");
+    console.log("  5. ✓ User pauses TraderState");
+    console.log("  6. ✓ User closes TraderState → funds to vault");
+    console.log("  7. ✓ User withdraws all funds from vault");
     console.log("\nNon-custodial guarantee: User retained ownership throughout.");
     console.log("");
   });
