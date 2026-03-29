@@ -1,49 +1,163 @@
-# Stellalpha Vault
+# stellalpha_vault
 
-Stellalpha Vault is a non-custodial copy trading smart contract built on Solana. It enables users to mirror the trades of "Star Traders" automatically, securely, and without holding any native SOL for network fees.
+`stellalpha_vault` is the on-chain vault and strategy-state program planned to power Stellalpha's mainnet execution layer.
 
-## Features
+This repository is best read as a **protocol component**, not as a product surface. The main Stellalpha app handles discovery, demo-vault UX, and simulated execution. `stellalpha_vault` is the capital-control layer intended to enforce that lifecycle on-chain once the mainnet vault is ready.
 
-- **Non-Custodial Architecture:** All deposited funds are held in Program Derived Addresses (PDAs) mathematically owned by the user. The protocol operator cannot withdraw or seize user funds.
-- **Gasless User Experience:** The vault operates entirely on SPL tokens. All network fees, rent, and Jupiter routing costs are covered by the Backend Authority via Jito bundles, ensuring the user experiences zero friction.
-- **Dynamic Trade Execution:** Integrates directly with Jupiter Aggregator v6 to facilitate optimal token swaps. Trade slippage is dynamically calculated off-chain and enforced on-chain as a hard mathematical floor (`min_amount_out`) to prevent MEV sandwich attacks.
-- **Provable Accounting:** Separates capital across dedicated `UserVault` (deposits) and `TraderState` (active execution) accounts to prevent cross-contamination and ensure accurate per-allocation accounting.
+At the same time, the design is not only useful to Stellalpha. The vault model can also be repurposed anywhere a system needs user-owned capital, delegated execution, isolated strategy state, and owner-controlled withdrawal.
 
-## Technology Stack
+## At A Glance
 
-- **Framework:** Anchor (v0.29.0)
-- **Language:** Rust
-- **Runtime Environment:** Solana Mainnet / Devnet
-- **Execution Engine:** Jupiter v6 CPI & Jito Block Engine (Off-chain)
+| Item | Description |
+| --- | --- |
+| Repository role | Planned mainnet capital layer for Stellalpha |
+| Repository type | Anchor program / protocol dependency |
+| Core model | User vault -> trader states |
+| Intended execution model | Delegated, policy-constrained Jupiter swaps |
+| Intended custody model | Non-custodial principal with owner-controlled withdrawal |
+| Current state | In development, not yet integrated into the main app, not yet at final mainnet posture |
 
-## Local Development
+## Repository Role
 
-Ensure you have the Solana CLI and Anchor framework installed.
+Within Stellalpha, this repository is meant to do one job well: define **who owns capital, who can execute strategy logic, and what cannot leave user control**.
 
-### Build the Program
+That makes it different from the main app:
 
-```bash
-anchor build
+- the app expresses the product flow
+- the demo vault proves the lifecycle in simulation
+- `stellalpha_vault` is meant to enforce the capital and permission boundary on-chain
+
+So this repo is part of Stellalpha, but it naturally reads more like a reusable protocol dependency than a public-facing application.
+
+## Contract Model
+
+The contract is built around a **vault -> trader states** structure.
+
+```mermaid
+flowchart LR
+    O["Owner"]
+
+    subgraph C["Capital Layer"]
+        UV["UserVault"]
+        TS["TraderState(s)"]
+    end
+
+    EA["Delegated execution authority"]
+
+    O <-->|fund / withdraw| UV
+    UV <-->|allocate / settle| TS
+    EA -->|execute within policy| TS
 ```
 
-This will compile the Rust smart contract into a deployable BPF binary.
+The diagram is intentionally abstract. It matches the intended architecture in the contract and the hardening plan: the owner remains the capital owner, the vault is the base account, trader states isolate per-trader allocations, and delegated authority operates only inside that trader-state layer. The Jupiter-only and policy-constrained execution model is part of the intended production boundary, but it is better expressed in prose than as extra diagram nodes here.
 
-### Run the Test Suite
+Each layer has a different responsibility:
 
-The repository contains a comprehensive suite of E2E Typescript tests validating the entire vault lifecycle, math precision, and security invariants.
+| Primitive | Role |
+| --- | --- |
+| `UserVault` | The owner's base capital account and trust boundary anchor. |
+| `TraderState` | An isolated allocation state for a specific followed trader or strategy. |
+| Delegated execution authority | The protocol authority intended to execute approved swaps inside active trader states. |
+| Owner withdrawal path | The path through which principal is intended to return to the owner wallet. |
 
-```bash
-# Run the localnet validator and execute all tests
-anchor test
-```
+This model is useful because it separates capital ownership from execution while still keeping allocation, settlement, and exit explicit.
 
-## Security
+## Why Stellalpha Uses This Shape
 
-The smart contract utilizes strict validations to guarantee fund security:
-- **ATA Ownership:** Input and Output token accounts during a copy-trade are strictly validated to belong to the user's PDA. The backend cannot redirect funds to an unauthorized wallet.
-- **SafeMath Integration:** All platform fee deductions (0.1%) use Rust's `checked_math` macros to mathematically prevent integer overflow/underflow exploits.
-- **Slippage Enforcement:** A mandatory `min_amount_out` parameter must be provided by the execution agent during any swap, with an on-chain verification forcing a transaction revert if the amount received from Jupiter falls beneath the threshold. 
+Stellalpha is not meant to mirror raw wallets forever. The long-term model is closer to **managed strategy execution without surrendering custody**.
+
+The vault -> trader states structure supports that by making the lifecycle explicit:
+
+- capital enters the user vault
+- trader-specific allocations are created intentionally
+- execution happens inside isolated trader states
+- positions can be paused, settled, and exited cleanly
+- principal returns through owner-controlled withdrawal paths
+
+That is the same lifecycle the main app already demonstrates in demo form. This contract is meant to become the on-chain version of that model.
+
+## Intended Trust Boundary
+
+The intended production boundary is:
+
+| Capability | Vault owner | Stellalpha execution authority | Meaning |
+| --- | --- | --- | --- |
+| Create the vault and assign delegated execution authority | Yes | No | The user defines the trust boundary. |
+| Deposit or add capital | Yes | No | Capital enters under owner control. |
+| Withdraw or redeem principal back to the owner wallet | Yes | No | Only the owner should be able to take capital out. Stellalpha should not be able to redeem, withdraw, or drain user funds. |
+| Pause or stop strategy activity | Yes | Yes | Either side should be able to halt execution for safety. |
+| Open, close, settle, and exit trader allocations | Yes | No | Strategy lifecycle remains owner-controlled. |
+| Execute approved Jupiter swaps inside active trader states | No* | Yes | Stellalpha gets execution authority, not custody authority. |
+| Send principal to an arbitrary external wallet | No | No | Principal should stay inside the vault and trader-state policy envelope. |
+
+\* Unless the owner is also set as the delegated authority. In Stellalpha's intended production model, execution authority and withdrawal authority remain separate.
+
+## Current Implementation State
+
+The current contract already reflects a meaningful part of the target design:
+
+- separate `UserVault` and `TraderState` account types
+- owner-gated deposit and withdrawal flows
+- trader-state lifecycle primitives
+- delegated execution through `execute_trader_swap`
+- multi-asset trader-state support
+
+But this repository should still be read as **in-progress infrastructure**, not as a finished mainnet vault.
+
+The main gaps are:
+
+- the legacy `execute_swap` path still exists
+- delegated execution is still broader than the intended Jupiter-only boundary
+- destination and authority constraints still need tightening before the strongest non-custodial claim is justified
+
+So the current state is:
+
+- the architecture is clear
+- the contract direction is aligned with Stellalpha
+- the hardening work is still ongoing
+
+## Reuse Beyond Stellalpha
+
+Although this repository is being developed for Stellalpha, the pattern is broader than copy trading.
+
+It can also fit systems that need:
+
+- user-owned capital accounts
+- delegated but constrained execution
+- isolated per-strategy state
+- explicit settlement and exit
+- a clear separation between automation and custody
+
+That makes `stellalpha_vault` useful not only as Stellalpha's planned capital layer, but also as a reusable design pattern for delegated on-chain execution more generally.
+
+## Development Direction
+
+The current direction toward a production-ready mainnet vault is:
+
+- remove or permanently disable the legacy execution surface
+- restrict execution to the final Jupiter-only model
+- finalize policy-constrained swap authority
+- tighten destination-account and authority boundaries
+- integrate the vault into the main Stellalpha app once the model is ready
+
+## Status
+
+| Dimension | Current read |
+| --- | --- |
+| Intended role | Stellalpha's final mainnet vault layer |
+| Current role | In-progress implementation of that layer |
+| Product relationship | Protocol dependency of the main app |
+| Reusability | Can be adapted outside Stellalpha |
+| Security posture | Not yet at final mainnet posture |
+| Integration status | Not yet integrated into the public app |
+
+## Related Links
+
+- **Main app**: [stellalpha.xyz](https://stellalpha.xyz)
+- **Main app repo**: [stellalpha](https://github.com/akm2006/stellalpha)
+- **DoraHacks**: [dorahacks.io/buidl/32072](https://dorahacks.io/buidl/32072)
+- **X**: [@stellalpha_](https://x.com/stellalpha_)
 
 ## License
 
-MIT
+Distributed under the MIT License. See `LICENSE` for more information.
